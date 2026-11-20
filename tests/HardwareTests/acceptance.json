@@ -1,0 +1,26 @@
+{
+  "status": "NOT_RUN",
+  "deviceModel": null,
+  "windowsBuild": null,
+  "remotePlayVersion": null,
+  "driverVersion": null,
+  "checks": {
+    "sonyAcceptsVirtualDS4": "NOT_RUN",
+    "allButtonsSticksAndTriggers": "NOT_RUN",
+    "touchClickSwipeAndTwoFingers": "NOT_RUN",
+    "gyroAxesGravityAndCalibration": "NOT_RUN",
+    "rumbleOrDocumentedUnavailable": "NOT_RUN",
+    "awayFromHomeSession": "NOT_RUN",
+    "foregroundInputIsolation": "NOT_RUN",
+    "normalExitRemovesDS4": "NOT_RUN",
+    "crashAndScopedCleanup": "NOT_RUN",
+    "suspendResumeAndReconnect": "NOT_RUN",
+    "sonyUpdateRestart": "NOT_RUN",
+    "singleInstance": "NOT_RUN",
+    "xboxSteamUnaffectedAfterExit": "NOT_RUN",
+    "signedDriverWithoutNewRoots": "NOT_RUN",
+    "installAndUninstall": "NOT_RUN",
+    "bridgeLatencyBelow5ms": "NOT_RUN",
+    "systemCpuBelow2percent": "NOT_RUN"
+  }
+}

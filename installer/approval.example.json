@@ -1,0 +1,16 @@
+{
+  "reviewed": false,
+  "viiper": {
+    "sourceRevision": "a77bbbb78a6072188fe40526acbcba5d9d70d197",
+    "sha256": "REPLACE_WITH_REVIEWED_X64_DLL_SHA256"
+  },
+  "driver": {
+    "sourceRevision": "77a781eaedc7f6b6cb171a92d378dee408ad7408",
+    "catalogSignerThumbprint": "REPLACE_WITH_REVIEWED_SIGNER_THUMBPRINT",
+    "files": {
+      "usbip2_ude.inf": "REPLACE_WITH_REVIEWED_SHA256",
+      "usbip2_ude.cat": "REPLACE_WITH_REVIEWED_SHA256",
+      "usbip2_ude.sys": "REPLACE_WITH_REVIEWED_SHA256"
+    }
+  }
+}

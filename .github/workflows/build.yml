@@ -1,0 +1,33 @@
+name: Build and regressions
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build AllyRemoteBridge.sln -c Release
+      - run: dotnet run --project tests/AllyRemoteBridge.Tests -c Release --no-build
+      - if: runner.os == 'Linux'
+        run: cc -std=c11 -Wall -Wextra -Werror tests/NativeAbi/layout.c -o /tmp/ally-native-layout && /tmp/ally-native-layout
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'installer/Prepare-Release.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+      - if: runner.os == 'Windows'
+        run: dotnet publish src/AllyRemoteBridge.App -c Release -r win-x64 --self-contained true -o artifacts/development
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-development-build-requires-reviewed-native-dependencies
+          path: artifacts/development
