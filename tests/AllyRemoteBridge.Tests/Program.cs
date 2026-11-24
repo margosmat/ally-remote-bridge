@@ -18,6 +18,14 @@ Test("All basic buttons map simultaneously", () =>
     var result = Map(mapper, XboxButtons.A | XboxButtons.B | XboxButtons.X | XboxButtons.Y | XboxButtons.LB | XboxButtons.RB | XboxButtons.LS | XboxButtons.RS | XboxButtons.Menu);
     Equal(DS4Buttons.Cross | DS4Buttons.Circle | DS4Buttons.Square | DS4Buttons.Triangle | DS4Buttons.L1 | DS4Buttons.R1 | DS4Buttons.L3 | DS4Buttons.R3 | DS4Buttons.Options, result.Buttons);
 });
+Test("Direct PS input and stick clicks reach native DS4 bits", () =>
+{
+    var mapper = new DS4Mapper(new());
+    var input = new ControllerState(XboxButtons.LS | XboxButtons.RS, 0, 0, 0, 0, 0, 0) { PlayStationPressed = true };
+    Equal((ushort)0xC001, ViiperNative.State.From(mapper.Map(input, default, default, MotionState.Neutral)).Buttons);
+    Equal((ushort)0x4000, ViiperNative.State.From(Map(mapper, XboxButtons.LS)).Buttons);
+    Equal((ushort)0x8000, ViiperNative.State.From(Map(mapper, XboxButtons.RS)).Buttons);
+});
 Test("Analog range and Y inversion", () =>
 {
     var result = new DS4Mapper(new()).Map(new(0, 255, 128, short.MinValue, short.MaxValue, short.MaxValue, 0), default, default, MotionState.Neutral);
@@ -41,6 +49,14 @@ Test("View tap emits one Share pulse on release", () =>
     Equal(DS4Buttons.None, Map(mapper, XboxButtons.View).Buttons);
     Equal(DS4Buttons.Share, Map(mapper, 0, 10).Buttons);
     Equal(DS4Buttons.None, Map(mapper, 0, 14).Buttons);
+});
+Test("Holding View forwards Share until release", () =>
+{
+    var mapper = new DS4Mapper(new());
+    Equal(DS4Buttons.None, Map(mapper, XboxButtons.View).Buttons);
+    Equal(DS4Buttons.Share, Map(mapper, XboxButtons.View, 250).Buttons);
+    Equal(DS4Buttons.Share, Map(mapper, XboxButtons.View, 1500).Buttons);
+    Equal(DS4Buttons.None, Map(mapper, XboxButtons.None, 1501).Buttons);
 });
 Test("Touch click chord never leaks Share or Square", () =>
 {
@@ -132,8 +148,9 @@ Test("Native DS4 ABI uses C padding", () =>
 Test("USB/IP attach request has expected ABI fields", () =>
 {
     byte[] request = UsbIpProtocol.Attach("1234-1", "ARB123456789012");
-    Equal(1120, request.Length); Equal(1120, BitConverter.ToInt32(request));
+    Equal(1124, request.Length); Equal(1124, BitConverter.ToInt32(request));
     Equal("127.0.0.1", System.Text.Encoding.ASCII.GetString(request, 76, 9));
+    Equal("ARB123456789012", System.Text.Encoding.ASCII.GetString(request, 1104, 15));
     Throws<ArgumentException>(() => UsbIpProtocol.Attach("1234-1", new string('A', 16)));
 });
 Test("USB/IP recovery matches all ownership fields", () =>
@@ -145,7 +162,7 @@ Test("USB/IP recovery matches all ownership fields", () =>
         System.Text.Encoding.ASCII.GetBytes("1234-1").CopyTo(list, offset + 8);
         System.Text.Encoding.ASCII.GetBytes("32451").CopyTo(list, offset + 40);
         System.Text.Encoding.ASCII.GetBytes("127.0.0.1").CopyTo(list, offset + 72);
-        System.Text.Encoding.ASCII.GetBytes(serial).CopyTo(list, offset + 1097);
+        System.Text.Encoding.ASCII.GetBytes(serial).CopyTo(list, offset + 1112);
     }
     Entry(4, "ARB123456789012", 7); Entry(4 + 1132, "OTHERDEVICE", 8);
     Equal(7, UsbIpProtocol.OwnedPorts(list, (uint)list.Length, "1234-1", "ARB123456789012", 7).Single());

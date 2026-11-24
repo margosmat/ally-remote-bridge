@@ -6,6 +6,7 @@ namespace AllyRemoteBridge.Devices;
 public sealed class XInputController(uint? requestedIndex) : IController
 {
     private uint? selected;
+    private long psPulseUntil;
     public static uint[] ConnectedSlots() => Enumerable.Range(0, 4).Select(i => (uint)i).Where(i => XInputGetState(i, out _) == 0).ToArray();
     public uint? SelectedIndex => selected;
     public void Prepare()
@@ -27,7 +28,14 @@ public sealed class XInputController(uint? requestedIndex) : IController
         // Never silently switch to another controller when the selected slot disconnects.
         if (selected is not { } index || XInputGetState(index, out var value) != 0) return false;
         var g = value.Gamepad;
-        state = new((XboxButtons)g.Buttons, g.LT, g.RT, g.LX, g.LY, g.RX, g.RY);
+        int psKeys = (ushort)GetAsyncKeyState(0x78) | (ushort)GetAsyncKeyState(0x79);
+        if ((psKeys & 1) != 0)
+            psPulseUntil = Environment.TickCount64 + 100;
+        state = new((XboxButtons)g.Buttons, g.LT, g.RT, g.LX, g.LY, g.RX, g.RY)
+        {
+            // Armoury Crate can bind the rear paddles to these keyboard keys.
+            PlayStationPressed = (psKeys & 0x8000) != 0 || Environment.TickCount64 < psPulseUntil
+        };
         return true;
     }
     public void Rumble(byte small, byte large)
@@ -46,4 +54,5 @@ public sealed class XInputController(uint? requestedIndex) : IController
     [StructLayout(LayoutKind.Sequential)] private struct Vibration { public ushort Left, Right; }
     [DllImport("xinput1_4.dll", ExactSpelling = true)] private static extern uint XInputGetState(uint index, out State state);
     [DllImport("xinput1_4.dll", ExactSpelling = true)] private static extern uint XInputSetState(uint index, ref Vibration vibration);
+    [DllImport("user32.dll", ExactSpelling = true)] private static extern short GetAsyncKeyState(int virtualKey);
 }

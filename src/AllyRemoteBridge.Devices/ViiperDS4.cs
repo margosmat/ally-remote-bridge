@@ -45,10 +45,10 @@ public sealed class ViiperDS4(Action<string> log) : IVirtualController
             for (int i = 0; i < 100; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (HidDiscovery.HasDS4(serial)) { log("Virtual DS4 detected by Windows"); return; }
+                if (HidDiscovery.HasDS4(serial, client.ControllerNode, port)) { log("Virtual DS4 detected by Windows"); return; }
                 await Task.Delay(100, cancellationToken);
             }
-            throw new TimeoutException("Windows did not enumerate the virtual DS4 within 10 seconds.");
+            throw new TimeoutException("The bridge could not identify the virtual DS4 on its USB/IP port within 10 seconds.");
         }
         catch { Detach(); throw; }
     }
@@ -66,8 +66,8 @@ public sealed class ViiperDS4(Action<string> log) : IVirtualController
             throw new InvalidDataException("Invalid ownership record; no device removed.");
         using var usbip = new UsbIpClient();
         usbip.DetachOwned($"{owned.Bus}-1", owned.Serial, owned.Port);
-        for (int i = 0; i < 40 && HidDiscovery.HasDS4(owned.Serial); i++) Thread.Sleep(50);
-        if (HidDiscovery.HasDS4(owned.Serial)) throw new IOException("The bridge-owned DS4 is still present. Ownership journal retained.");
+        for (int i = 0; i < 40 && HidDiscovery.HasDS4(owned.Serial, usbip.ControllerNode, owned.Port); i++) Thread.Sleep(50);
+        if (HidDiscovery.HasDS4(owned.Serial, usbip.ControllerNode, owned.Port)) throw new IOException("The bridge-owned DS4 is still present. Ownership journal retained.");
         File.Delete(Journal);
     }
     public void Send(DS4State state)
@@ -93,8 +93,8 @@ public sealed class ViiperDS4(Action<string> log) : IVirtualController
         if (ownership is { } removed)
             Attempt(() =>
             {
-                for (int i = 0; i < 40 && HidDiscovery.HasDS4(removed.Serial); i++) Thread.Sleep(50);
-                if (HidDiscovery.HasDS4(removed.Serial)) throw new IOException("Windows still reports the bridge-owned DS4; ownership journal retained.");
+                for (int i = 0; i < 40 && HidDiscovery.HasDS4(removed.Serial, client!.ControllerNode, removed.Port); i++) Thread.Sleep(50);
+                if (HidDiscovery.HasDS4(removed.Serial, client!.ControllerNode, removed.Port)) throw new IOException("Windows still reports the bridge-owned DS4; ownership journal retained.");
                 if (errors.Count == 0) File.Delete(Journal);
             });
         client?.Dispose(); client = null; ownership = null;

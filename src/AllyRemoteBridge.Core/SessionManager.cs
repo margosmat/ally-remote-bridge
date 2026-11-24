@@ -50,6 +50,12 @@ public sealed class SessionManager(BridgeSettings settings, IController controll
             TimeSpan? missingSince = null;
             DS4State? last = null;
             bool wasForwarding = false, sensorPaused = false;
+            string? lastInputStatus = null;
+            TimeSpan timingStart = clock.Elapsed;
+            TimeSpan? previousRead = null;
+            double maxReadGapMs = 0, maxSendMs = 0;
+            int readCount = 0, sendCount = 0;
+            XboxButtons lastStickClicks = XboxButtons.None;
             int observedResume = Volatile.Read(ref resumeVersion);
             touch.Deactivate();
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(4));
@@ -83,24 +89,63 @@ public sealed class SessionManager(BridgeSettings settings, IController controll
                     sensorPaused = false;
                     observedResume = currentResume;
                 }
-                forwarding = !suspended && missingSince is null && remote.IsForeground;
+                string inputStatus = suspended ? "paused while Windows is suspended"
+                    : missingSince is not null ? "paused because PS Remote Play is not running"
+                    : !remote.IsForeground ? "paused because PS Remote Play is not the foreground window"
+                    : "forwarding";
+                forwarding = inputStatus == "forwarding";
                 DS4State next = DS4State.Neutral;
                 if (forwarding && controller.TryRead(out var input))
                 {
+                    TimeSpan readAt = clock.Elapsed;
+                    if (previousRead is { } previous)
+                        maxReadGapMs = Math.Max(maxReadGapMs, (readAt - previous).TotalMilliseconds);
+                    previousRead = readAt;
+                    readCount++;
                     MotionState m = MotionState.Neutral;
                     if (settings.EnableMotion && motion.TryRead(out var sample)) m = motionMapper.Convert(sample, DateTimeOffset.UtcNow);
                     next = mapper.Map(input, clock.Elapsed, settings.EnableTouchpad ? touch.Read() : default, m);
+                    if (next.Buttons.HasFlag(DS4Buttons.PS) && last?.Buttons.HasFlag(DS4Buttons.PS) != true)
+                        log(input.PlayStationPressed ? "PS pressed via F9/F10" : "PS pressed via controller shortcut");
+                    var stickClicks = input.Buttons & (XboxButtons.LS | XboxButtons.RS);
+                    if (stickClicks != lastStickClicks)
+                    {
+                        log($"Stick clicks: XInput {stickClicks}, DS4 {next.Buttons & (DS4Buttons.L3 | DS4Buttons.R3)}");
+                        lastStickClicks = stickClicks;
+                    }
                     if (settings.EnableTouchpad && mapper.OverlayRequested) touch.Toggle();
                 }
                 else
                 {
+                    previousRead = null;
+                    if (forwarding) inputStatus = "paused because the selected XInput slot is unavailable";
                     forwarding = false;
                     mapper.Reset(); motionMapper.Reset();
                     if (wasForwarding) touch.Deactivate();
                 }
+                if (inputStatus != lastInputStatus)
+                {
+                    log($"Controller input: {inputStatus}");
+                    lastInputStatus = inputStatus;
+                }
                 rumble.SetActive(forwarding);
                 wasForwarding = forwarding;
-                if (last != next) { device.Send(next); last = next; }
+                if (last != next)
+                {
+                    long sendStart = Stopwatch.GetTimestamp();
+                    device.Send(next);
+                    maxSendMs = Math.Max(maxSendMs, Stopwatch.GetElapsedTime(sendStart).TotalMilliseconds);
+                    sendCount++;
+                    last = next;
+                }
+                if (clock.Elapsed - timingStart >= TimeSpan.FromSeconds(5))
+                {
+                    if (readCount > 0)
+                        log($"Input timing: {readCount} XInput reads, max read gap {maxReadGapMs:F1} ms, {sendCount} DS4 reports, max send call {maxSendMs:F1} ms");
+                    timingStart = clock.Elapsed;
+                    maxReadGapMs = maxSendMs = 0;
+                    readCount = sendCount = 0;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }

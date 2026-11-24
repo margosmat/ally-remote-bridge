@@ -8,6 +8,8 @@ namespace AllyRemoteBridge.Devices;
 // Raw Bosch reports must never be guessed: a verified model-specific adapter can implement IMotionSource.
 public sealed class SensorReader : IMotionSource
 {
+    private readonly object readingsLock = new();
+    private (Vector3 Value, DateTimeOffset Timestamp)? gyroReading, accelerationReading;
     private Gyrometer? gyro;
     private Accelerometer? accelerometer;
     public string Status { get; private set; } = "Motion inactive";
@@ -24,40 +26,85 @@ public sealed class SensorReader : IMotionSource
         }
         gyro.ReportInterval = Math.Max(4u, gyro.MinimumReportInterval);
         accelerometer.ReportInterval = Math.Max(4u, accelerometer.MinimumReportInterval);
+        gyro.ReadingChanged += OnGyroReading;
+        accelerometer.ReadingChanged += OnAccelerationReading;
         Status = "Windows gyro and accelerometer available; verify axis orientation on hardware";
     }
+    private void OnGyroReading(Gyrometer sender, GyrometerReadingChangedEventArgs args)
+    {
+        var reading = args.Reading;
+        var sample = (new Vector3((float)reading.AngularVelocityX, (float)reading.AngularVelocityY, (float)reading.AngularVelocityZ), reading.Timestamp);
+        lock (readingsLock)
+            if (ReferenceEquals(gyro, sender)) gyroReading = sample;
+    }
+
+    private void OnAccelerationReading(Accelerometer sender, AccelerometerReadingChangedEventArgs args)
+    {
+        var reading = args.Reading;
+        var sample = (new Vector3((float)reading.AccelerationX, (float)reading.AccelerationY, (float)reading.AccelerationZ) * 9.81f, reading.Timestamp);
+        lock (readingsLock)
+            if (ReferenceEquals(accelerometer, sender)) accelerationReading = sample;
+    }
+
     public bool TryRead(out MotionSample sample)
     {
-        sample = default;
-        if (gyro is null || accelerometer is null) return false;
-        try
+        lock (readingsLock)
         {
-            var g = gyro.GetCurrentReading();
-            var a = accelerometer.GetCurrentReading();
-            if (g is null || a is null) return false;
-            var timestamp = g.Timestamp < a.Timestamp ? g.Timestamp : a.Timestamp;
-            sample = new(new((float)g.AngularVelocityX, (float)g.AngularVelocityY, (float)g.AngularVelocityZ),
-                new Vector3((float)a.AccelerationX, (float)a.AccelerationY, (float)a.AccelerationZ) * 9.81f, timestamp);
-            return true;
+            if (gyroReading is { } g && accelerationReading is { } a)
+            {
+                sample = new(g.Value, a.Value, g.Timestamp < a.Timestamp ? g.Timestamp : a.Timestamp);
+                return true;
+            }
         }
-        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
-        { Status = "Motion sensor disconnected or access denied"; Stop(); return false; }
+        sample = default;
+        return false;
     }
+
     public void Stop()
     {
-        try { if (gyro is not null) gyro.ReportInterval = 0; }
+        Gyrometer? previousGyro;
+        Accelerometer? previousAccelerometer;
+        lock (readingsLock)
+        {
+            previousGyro = gyro;
+            previousAccelerometer = accelerometer;
+            gyro = null;
+            accelerometer = null;
+            gyroReading = null;
+            accelerationReading = null;
+        }
+        try
+        {
+            if (previousGyro is not null)
+            {
+                previousGyro.ReadingChanged -= OnGyroReading;
+                previousGyro.ReportInterval = 0;
+            }
+        }
         finally
         {
-            gyro = null;
-            try { if (accelerometer is not null) accelerometer.ReportInterval = 0; }
-            finally { accelerometer = null; }
+            if (previousAccelerometer is not null)
+            {
+                previousAccelerometer.ReadingChanged -= OnAccelerationReading;
+                previousAccelerometer.ReportInterval = 0;
+            }
         }
     }
+
     public async Task<float[]> CalibrateAsync(CancellationToken cancellationToken)
     {
         Start();
         try
         {
+            if (gyro is null || accelerometer is null) throw new InvalidOperationException(Status);
+            var startup = System.Diagnostics.Stopwatch.StartNew();
+            while (!TryRead(out _))
+            {
+                if (startup.Elapsed >= TimeSpan.FromSeconds(2))
+                    throw new InvalidOperationException("No motion samples received.");
+                await Task.Delay(10, cancellationToken);
+            }
+
             Vector3 sum = default;
             int count = 0;
             for (int i = 0; i < 200; i++)

@@ -15,7 +15,10 @@ public enum DS4Buttons : ushort
     Triangle = 128, L1 = 256, R1 = 512, L2 = 1024, R2 = 2048,
     Share = 4096, Options = 8192, L3 = 16384, R3 = 32768
 }
-public readonly record struct ControllerState(XboxButtons Buttons, byte LT, byte RT, short LX, short LY, short RX, short RY);
+public readonly record struct ControllerState(XboxButtons Buttons, byte LT, byte RT, short LX, short LY, short RX, short RY)
+{
+    public bool PlayStationPressed { get; init; }
+}
 public readonly record struct TouchContact(ushort X, ushort Y, bool Active);
 public readonly record struct TouchState(TouchContact First, TouchContact Second);
 public readonly record struct MotionSample(Vector3 GyroDps, Vector3 AccelerationMS2, DateTimeOffset Timestamp);

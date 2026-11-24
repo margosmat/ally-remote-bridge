@@ -30,13 +30,18 @@ public sealed class RemotePlayProcess(BridgeSettings settings) : IRemotePlay
             process?.Dispose();
             process = Process.Start(new ProcessStartInfo(path!) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path)! });
         }
-        for (int i = 0; i < 100; i++)
+        var startup = Stopwatch.StartNew();
+        while (startup.Elapsed < TimeSpan.FromSeconds(45))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (IsRunning && process!.MainWindowHandle != 0) return;
+            if (IsRunning)
+            {
+                process!.Refresh();
+                if (process.MainWindowHandle != 0 || IsForeground) return;
+            }
             await Task.Delay(100, cancellationToken);
         }
-        throw new TimeoutException("Remote Play did not open its window within 10 seconds.");
+        throw new TimeoutException("Remote Play did not open its window within 45 seconds.");
     }
     private bool Matches(Process p)
     {

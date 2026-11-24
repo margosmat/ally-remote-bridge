@@ -9,6 +9,7 @@ namespace AllyRemoteBridge.Devices;
 internal sealed class UsbIpClient : IDisposable
 {
     private readonly SafeFileHandle handle;
+    internal uint ControllerNode { get; }
     private static readonly Guid InterfaceId = new("B4030C06-DC5F-4FCC-87EB-E5515A0935C0");
     internal UsbIpClient()
     {
@@ -24,7 +25,9 @@ internal sealed class UsbIpClient : IDisposable
             try
             {
                 Marshal.WriteInt32(data, 8); // Windows x64 SP_DEVICE_INTERFACE_DETAIL_DATA_W.cbSize
-                if (!SetupDiGetDeviceInterfaceDetail(set, ref info, data, size, out _, 0)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var device = new DeviceInfo { Size = (uint)Marshal.SizeOf<DeviceInfo>() };
+                if (!SetupDiGetDeviceInterfaceDetailWithInfo(set, ref info, data, size, out _, ref device)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                ControllerNode = device.Node;
                 string path = Marshal.PtrToStringUni(data + 4)!;
                 handle = CreateFile(path, 0xC0000000, 3, 0, 3, 0, 0);
                 if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot access USB/IP driver as current user.");
@@ -44,7 +47,7 @@ internal sealed class UsbIpClient : IDisposable
     }
     internal bool DetachOwned(string bus, string serial, int? expectedPort)
     {
-        byte[] query = new byte[4 + 1140 * 256];
+        byte[] query = new byte[4 + UsbIpProtocol.ImportedSize * 256];
         BitConverter.GetBytes(UsbIpProtocol.QueryHeaderSize).CopyTo(query, 0);
         uint count = Invoke(0x802, query, query);
         var ports = UsbIpProtocol.OwnedPorts(query, count, bus, serial, expectedPort);
@@ -55,10 +58,17 @@ internal sealed class UsbIpClient : IDisposable
     {
         uint code = (0x22u << 16) | (3u << 14) | (function << 2);
         if (!DeviceIoControl(handle, code, input, (uint)input.Length, output, (uint)output.Length, out uint returned, 0))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "USB/IP operation failed; driver ABI or permissions may be incompatible.");
+        {
+            int error = Marshal.GetLastWin32Error();
+            throw new Win32Exception(error, $"USB/IP operation 0x{function:X3} failed (Win32 {error}): {new Win32Exception(error).Message}");
+        }
         return returned;
     }
     public void Dispose() => handle.Dispose();
+    [StructLayout(LayoutKind.Sequential)] private struct DeviceInfo { public uint Size; public Guid ClassGuid; public uint Node; public nuint Reserved; }
+    [DllImport("setupapi.dll", EntryPoint = "SetupDiGetDeviceInterfaceDetailW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetupDiGetDeviceInterfaceDetailWithInfo(nint set, ref InterfaceData detail, nint data, uint size, out uint required, ref DeviceInfo device);
     [StructLayout(LayoutKind.Sequential)] private struct InterfaceData { public uint Size; public Guid Guid; public uint Flags; public nuint Reserved; }
     [DllImport("setupapi.dll", EntryPoint = "SetupDiGetClassDevsW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern nint SetupDiGetClassDevs(ref Guid guid, string? enumerator, nint parent, uint flags);
     [DllImport("setupapi.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetupDiEnumDeviceInterfaces(nint set, nint device, ref Guid guid, uint index, ref InterfaceData data);

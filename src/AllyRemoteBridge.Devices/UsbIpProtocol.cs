@@ -4,13 +4,13 @@ namespace AllyRemoteBridge.Devices;
 
 internal static class UsbIpProtocol
 {
-    internal const int AttachSize = 1120, ImportedSize = 1132, QueryHeaderSize = 1136;
+    internal const int AttachSize = 1124, ImportedSize = 1132, QueryHeaderSize = 1136;
     internal static byte[] Attach(string bus, string serial)
     {
         byte[] request = new byte[AttachSize];
         BitConverter.GetBytes(request.Length).CopyTo(request, 0);
         Write(request, 12, 32, bus); Write(request, 44, 32, "32451"); Write(request, 76, 1025, "127.0.0.1");
-        Write(request, 1101, 16, serial);
+        Write(request, 1104, 16, serial);
         return request;
     }
     internal static IReadOnlyList<int> OwnedPorts(byte[] query, uint returned, string bus, string serial, int? expectedPort)
@@ -22,7 +22,7 @@ internal static class UsbIpProtocol
         {
             int port = BitConverter.ToInt32(query, offset);
             string b = Read(query, offset + 8, 32), service = Read(query, offset + 40, 32), host = Read(query, offset + 72, 1025);
-            string s = Read(query, offset + 1097, 16);
+            string s = Read(query, offset + 1112, 16);
             if (b != bus || service != "32451" || host != "127.0.0.1" || s != serial || (expectedPort is { } p && p != port)) continue;
             if (port <= 0) throw new InvalidDataException("Invalid owned USB/IP port.");
             ports.Add(port);

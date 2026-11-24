@@ -41,9 +41,9 @@ Default shortcuts (press the prefix first):
 - `View + X`: hold a touchpad click.
 - Hold `View + Menu` for 600 ms: PS button.
 - `View + Y`: toggle the touch overlay.
-- Tap and release `View` on its own: Share.
+- Tap `View` on its own for Share, or hold it to hold Share.
 
-View is deferred until release to suppress accidental Share actions during shortcuts. Pressing an action button before the prefix can already send that button to the game. Shortcut buttons are configurable. Touching the surface does not click it.
+Press the shortcut action within 250 ms of pressing View. After that interval an unclaimed View press is forwarded as held Share until release. Pressing an action button before the prefix can already send that button to the game. Shortcut buttons are configurable. Touching the surface does not click it.
 
 The overlay captures only its own rectangle, supports two contacts, and disappears when Sony loses foreground focus. Set its size and position in settings.
 

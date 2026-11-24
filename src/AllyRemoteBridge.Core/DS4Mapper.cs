@@ -3,13 +3,15 @@ namespace AllyRemoteBridge.Core;
 public sealed class DS4Mapper(BridgeSettings settings)
 {
     private bool prefixHeld, consumed, overlaySent, sharePulse;
+    private bool shareHeld;
+    private TimeSpan prefixStarted;
     private XboxButtons suppressed;
     private TimeSpan? psStart;
     public bool OverlayRequested { get; private set; }
 
     public void Reset()
     {
-        prefixHeld = consumed = overlaySent = sharePulse = false;
+        prefixHeld = consumed = overlaySent = sharePulse = shareHeld = false;
         suppressed = 0; psStart = null;
         OverlayRequested = false;
     }
@@ -18,11 +20,15 @@ public sealed class DS4Mapper(BridgeSettings settings)
     {
         OverlayRequested = false;
         var buttons = input.Buttons;
-        DS4Buttons extra = 0;
-        // Prefix is deferred until release, so a chord never leaks a Share press.
+        DS4Buttons extra = input.PlayStationPressed ? DS4Buttons.PS : DS4Buttons.None;
+        // Give shortcut presses time to claim the prefix before forwarding a standalone hold.
         bool prefix = buttons.HasFlag(settings.ShortcutPrefix);
-        if (prefix && !prefixHeld) { consumed = overlaySent = false; }
-        if (prefix)
+        if (prefix && !prefixHeld)
+        {
+            consumed = overlaySent = shareHeld = false;
+            prefixStarted = now;
+        }
+        if (prefix && !shareHeld)
         {
             if (buttons.HasFlag(settings.TouchClickButton)) { extra |= DS4Buttons.Touchpad; consumed = true; suppressed |= settings.TouchClickButton; }
             if (buttons.HasFlag(settings.PSButton))
@@ -41,8 +47,9 @@ public sealed class DS4Mapper(BridgeSettings settings)
             }
         }
         if (!prefix) psStart = null;
-        if (!prefix && prefixHeld && !consumed) sharePulse = true;
-        if (sharePulse) { buttons |= settings.ShortcutPrefix; sharePulse = false; }
+        if (prefix && !consumed && now - prefixStarted >= TimeSpan.FromMilliseconds(250)) shareHeld = true;
+        if (!prefix && prefixHeld && !consumed && !shareHeld) sharePulse = true;
+        if (sharePulse || (prefix && shareHeld)) { buttons |= settings.ShortcutPrefix; sharePulse = false; }
         else buttons &= ~settings.ShortcutPrefix;
         prefixHeld = prefix;
         buttons &= ~suppressed;
