@@ -8,8 +8,9 @@ internal sealed class SettingsWindow : Form
     private BridgeSettings settings;
     private readonly TextBox remotePath = new() { Width = 390 };
     private readonly ComboBox controller = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 300 };
-    private readonly NumericUpDown deadZone = Number(0, 99), hold = Number(200, 5000), grace = Number(0, 120);
+    private readonly NumericUpDown deadZone = Number(0, 99), grace = Number(0, 120);
     private readonly CheckBox gyro = Check("Enable gyro and accelerometer"), touch = Check("Enable on-screen touchpad"), rumble = Check("Forward vibration"), launch = Check("Automatically launch PS Remote Play");
+    private readonly CheckBox fullScreenTouch = Check("Automatically use the whole Remote Play screen");
     private readonly ComboBox prefix = ButtonChoice(), click = ButtonChoice(), ps = ButtonChoice(), overlay = ButtonChoice();
     private readonly NumericUpDown x = Number(-10000, 10000), y = Number(-10000, 10000), width = Number(100, 3840), height = Number(80, 2160);
     private readonly NumericUpDown[] axes = [Number(-3, 3), Number(-3, 3), Number(-3, 3)];
@@ -41,11 +42,15 @@ internal sealed class SettingsWindow : Form
         Add("Connected XInput slots", new Label { Text = string.Join(", ", XInputController.ConnectedSlots()), AutoSize = true });
         deadZone.Value = (decimal)(settings.DeadZone * 100); Add("Stick dead zone (%)", deadZone);
         gyro.Checked = settings.EnableMotion; touch.Checked = settings.EnableTouchpad; rumble.Checked = settings.EnableRumble; launch.Checked = settings.AutoLaunch;
-        Add("Motion", gyro); Add("Touchpad", touch); Add("Vibration (optional)", rumble); Add("Startup", launch);
+        fullScreenTouch.Checked = settings.FullScreenTouchpad;
+        fullScreenTouch.Enabled = touch.Checked;
+        touch.CheckedChanged += (_, _) => fullScreenTouch.Enabled = touch.Checked;
+        Add("Motion", gyro); Add("Touchpad", touch); Add("Full-screen touchpad", fullScreenTouch);
+        Add("Vibration (optional)", rumble); Add("Startup", launch);
         prefix.SelectedItem = settings.ShortcutPrefix; click.SelectedItem = settings.TouchClickButton; ps.SelectedItem = settings.PSButton; overlay.SelectedItem = settings.OverlayButton;
-        Add("Shortcut prefix (press first)", prefix); Add("Touchpad click: prefix +", click); Add("PS: hold prefix +", ps); Add("Toggle touchpad: prefix +", overlay);
-        hold.Value = settings.PSHoldMilliseconds; grace.Value = settings.RestartGraceSeconds;
-        Add("PS hold duration (ms)", hold); Add("Sony restart grace (seconds)", grace);
+        Add("Shortcut prefix (press first)", prefix); Add("Touchpad click: prefix +", click); Add("PS: prefix +", ps); Add("Toggle touchpad: prefix +", overlay);
+        grace.Value = settings.RestartGraceSeconds;
+        Add("Sony restart grace (seconds)", grace);
         x.Value = Math.Clamp(settings.OverlayX, -10000, 10000); y.Value = Math.Clamp(settings.OverlayY, -10000, 10000);
         width.Value = settings.OverlayWidth; height.Value = settings.OverlayHeight;
         Add("Touchpad screen X", x); Add("Touchpad screen Y", y); Add("Touchpad width", width); Add("Touchpad height", height);
@@ -89,7 +94,8 @@ internal sealed class SettingsWindow : Form
                 RemotePlayPath = string.IsNullOrWhiteSpace(remotePath.Text) ? null : remotePath.Text.Trim(),
                 ControllerIndex = controller.SelectedIndex == 0 ? null : (uint)(controller.SelectedIndex - 1),
                 DeadZone = (double)deadZone.Value / 100, EnableMotion = gyro.Checked, EnableTouchpad = touch.Checked,
-                EnableRumble = rumble.Checked, AutoLaunch = launch.Checked, PSHoldMilliseconds = (int)hold.Value, RestartGraceSeconds = (int)grace.Value,
+                FullScreenTouchpad = fullScreenTouch.Checked,
+                EnableRumble = rumble.Checked, AutoLaunch = launch.Checked, RestartGraceSeconds = (int)grace.Value,
                 ShortcutPrefix = (XboxButtons)prefix.SelectedItem!, TouchClickButton = (XboxButtons)click.SelectedItem!, PSButton = (XboxButtons)ps.SelectedItem!, OverlayButton = (XboxButtons)overlay.SelectedItem!,
                 OverlayX = (int)x.Value, OverlayY = (int)y.Value, OverlayWidth = (int)width.Value, OverlayHeight = (int)height.Value,
                 MotionAxes = axes.Select(a => (int)a.Value).ToArray(), MotionSmoothing = (double)smoothing.Value / 100

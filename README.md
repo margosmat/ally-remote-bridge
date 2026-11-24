@@ -39,7 +39,7 @@ After installation of a reviewed release, launch **Ally Remote Bridge**. The app
 Default shortcuts (press the prefix first):
 
 - `View + X`: hold a touchpad click.
-- Hold `View + Menu` for 600 ms: PS button.
+- `View + Menu` sends one short PS press.
 - `View + Y`: toggle the touch overlay.
 - Tap `View` on its own for Share, or hold it to hold Share.
 

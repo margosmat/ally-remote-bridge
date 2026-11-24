@@ -67,13 +67,16 @@ Test("Touch click chord never leaks Share or Square", () =>
     Equal(DS4Buttons.None, Map(mapper, 0, 30).Buttons);
     Equal(DS4Buttons.Square, Map(mapper, XboxButtons.X, 40).Buttons);
 });
-Test("PS requires holding the complete chord", () =>
+Test("PS chord sends one short pulse even when held", () =>
 {
     var mapper = new DS4Mapper(new());
     Map(mapper, XboxButtons.View);
-    Equal(DS4Buttons.None, Map(mapper, XboxButtons.View | XboxButtons.Menu, 2000).Buttons);
-    Equal(DS4Buttons.PS, Map(mapper, XboxButtons.View | XboxButtons.Menu, 2600).Buttons);
-    Equal(DS4Buttons.None, Map(mapper, XboxButtons.Menu, 2700).Buttons);
+    Equal(DS4Buttons.PS, Map(mapper, XboxButtons.View | XboxButtons.Menu, 10).Buttons);
+    Equal(DS4Buttons.PS, Map(mapper, XboxButtons.View | XboxButtons.Menu, 109).Buttons);
+    Equal(DS4Buttons.None, Map(mapper, XboxButtons.View | XboxButtons.Menu, 900).Buttons);
+    Equal(DS4Buttons.None, Map(mapper, XboxButtons.Menu, 910).Buttons);
+    Map(mapper, XboxButtons.None, 920);
+    Equal(DS4Buttons.PS, Map(mapper, XboxButtons.View | XboxButtons.Menu, 930).Buttons);
 });
 Test("Overlay chord fires once until prefix release", () =>
 {
@@ -98,6 +101,17 @@ Test("Two contacts preserve slots when first finger lifts", () =>
     Equal(default(TouchContact), after.First); Equal(before.Second, after.Second);
     touch.Update(30, 30, 30, 100, 100); touch.Update(40, 40, 40, 100, 100);
     Equal(before.Second, touch.Read().Second); touch.Reset(); Equal(default(TouchState), touch.Read());
+});
+Test("A short touch survives until the next poll", () =>
+{
+    var touch = new TouchManager();
+    touch.Update(1, 50, 50, 100, 100);
+    touch.Release(1);
+    Equal(new TouchContact(960, 471, true), touch.Read().First);
+    Equal(default(TouchState), touch.Read());
+    touch.Update(2, 50, 50, 100, 100);
+    touch.Release(2, canceled: true);
+    Equal(default(TouchState), touch.Read());
 });
 Test("Motion retains gravity and scales physical units", () =>
 {

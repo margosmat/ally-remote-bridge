@@ -106,7 +106,7 @@ public sealed class SessionManager(BridgeSettings settings, IController controll
                     if (settings.EnableMotion && motion.TryRead(out var sample)) m = motionMapper.Convert(sample, DateTimeOffset.UtcNow);
                     next = mapper.Map(input, clock.Elapsed, settings.EnableTouchpad ? touch.Read() : default, m);
                     if (next.Buttons.HasFlag(DS4Buttons.PS) && last?.Buttons.HasFlag(DS4Buttons.PS) != true)
-                        log(input.PlayStationPressed ? "PS pressed via F9/F10" : "PS pressed via controller shortcut");
+                        log(input.PlayStationPressed ? "PS pressed via ASUS button or keyboard shortcut" : "PS pressed via controller shortcut");
                     var stickClicks = input.Buttons & (XboxButtons.LS | XboxButtons.RS);
                     if (stickClicks != lastStickClicks)
                     {

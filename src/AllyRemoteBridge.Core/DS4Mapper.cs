@@ -6,13 +6,16 @@ public sealed class DS4Mapper(BridgeSettings settings)
     private bool shareHeld;
     private TimeSpan prefixStarted;
     private XboxButtons suppressed;
-    private TimeSpan? psStart;
+    private TimeSpan psTapUntil;
+    private bool psChordHeld;
     public bool OverlayRequested { get; private set; }
 
     public void Reset()
     {
         prefixHeld = consumed = overlaySent = sharePulse = shareHeld = false;
-        suppressed = 0; psStart = null;
+        suppressed = 0;
+        psTapUntil = default;
+        psChordHeld = false;
         OverlayRequested = false;
     }
 
@@ -35,10 +38,9 @@ public sealed class DS4Mapper(BridgeSettings settings)
             {
                 consumed = true;
                 suppressed |= settings.PSButton;
-                psStart ??= now;
-                if (now - psStart.Value >= TimeSpan.FromMilliseconds(settings.PSHoldMilliseconds)) extra |= DS4Buttons.PS;
+                if (!psChordHeld) psTapUntil = now + TimeSpan.FromMilliseconds(100);
+                psChordHeld = true;
             }
-            else psStart = null;
             if (buttons.HasFlag(settings.OverlayButton))
             {
                 consumed = true;
@@ -46,7 +48,8 @@ public sealed class DS4Mapper(BridgeSettings settings)
                 if (!overlaySent) { OverlayRequested = true; overlaySent = true; }
             }
         }
-        if (!prefix) psStart = null;
+        if (!prefix || !buttons.HasFlag(settings.PSButton)) psChordHeld = false;
+        if (now < psTapUntil) extra |= DS4Buttons.PS;
         if (prefix && !consumed && now - prefixStarted >= TimeSpan.FromMilliseconds(250)) shareHeld = true;
         if (!prefix && prefixHeld && !consumed && !shareHeld) sharePulse = true;
         if (sharePulse || (prefix && shareHeld)) { buttons |= settings.ShortcutPrefix; sharePulse = false; }

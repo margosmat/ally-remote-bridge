@@ -3,7 +3,7 @@ using AllyRemoteBridge.Core;
 
 namespace AllyRemoteBridge.Devices;
 
-public sealed class XInputController(uint? requestedIndex) : IController
+public sealed class XInputController(uint? requestedIndex, Func<bool>? allyPsPressed = null) : IController
 {
     private uint? selected;
     private long psPulseUntil;
@@ -34,7 +34,7 @@ public sealed class XInputController(uint? requestedIndex) : IController
         state = new((XboxButtons)g.Buttons, g.LT, g.RT, g.LX, g.LY, g.RX, g.RY)
         {
             // Armoury Crate can bind the rear paddles to these keyboard keys.
-            PlayStationPressed = (psKeys & 0x8000) != 0 || Environment.TickCount64 < psPulseUntil
+            PlayStationPressed = (psKeys & 0x8000) != 0 || Environment.TickCount64 < psPulseUntil || allyPsPressed?.Invoke() == true
         };
         return true;
     }

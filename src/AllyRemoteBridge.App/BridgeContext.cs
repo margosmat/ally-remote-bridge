@@ -13,6 +13,7 @@ internal sealed class BridgeContext : ApplicationContext
     private readonly ViiperDS4 device;
     private readonly RemotePlayProcess remote;
     private readonly SessionManager session;
+    private readonly AllyButtons allyButtons;
     private readonly CancellationTokenSource cancellation = new();
     private readonly LocalLog log;
     private readonly BridgeSettings settings;
@@ -24,7 +25,8 @@ internal sealed class BridgeContext : ApplicationContext
     {
         this.settings = settings; this.log = log;
         overlay = new(settings); device = new(log.Write); remote = new(settings);
-        session = new(settings, new XInputController(settings.ControllerIndex), sensors, device, remote, overlay, log.Write);
+        allyButtons = new(log.Write);
+        session = new(settings, new XInputController(settings.ControllerIndex, allyButtons.IsPressed), sensors, device, remote, overlay, log.Write);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Toggle touchpad", null, (_, _) => { if (settings.EnableTouchpad && session.IsForwarding) overlay.Toggle(); });
         menu.Items.Add("Settings…", null, (_, _) => { using var window = new SettingsWindow(settings, true); window.ShowDialog(); });
@@ -34,7 +36,7 @@ internal sealed class BridgeContext : ApplicationContext
         tray = new() { Icon = SystemIcons.Application, Text = "Ally Remote Bridge", ContextMenuStrip = menu, Visible = true };
         SystemEvents.PowerModeChanged += OnPower;
         SystemEvents.SessionEnding += OnSessionEnding;
-        guard.Tick += (_, _) => { if (!session.IsForwarding) overlay.Deactivate(); };
+        guard.Tick += (_, _) => overlay.UpdateSession(settings.EnableTouchpad && session.IsForwarding && !stopping);
         guard.Start();
         Application.Idle += StartOnce;
     }
@@ -67,6 +69,7 @@ internal sealed class BridgeContext : ApplicationContext
         SystemEvents.PowerModeChanged -= OnPower;
         SystemEvents.SessionEnding -= OnSessionEnding;
         tray.Visible = false; tray.ContextMenuStrip?.Dispose(); tray.Dispose();
+        allyButtons.Dispose();
         overlay.Dispose(); sensors.Dispose(); remote.Dispose();
         try { device.Dispose(); } catch (Exception e) { log.Write($"Final cleanup failed: {e.Message}"); }
         cancellation.Dispose();

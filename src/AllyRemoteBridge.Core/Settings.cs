@@ -11,6 +11,7 @@ public sealed record BridgeSettings
     public double DeadZone { get; init; } = .08;
     public bool EnableMotion { get; init; } = true;
     public bool EnableTouchpad { get; init; } = true;
+    public bool FullScreenTouchpad { get; init; }
     public bool EnableRumble { get; init; }
     public bool AutoLaunch { get; init; } = true;
     public int RestartGraceSeconds { get; init; } = 10;
